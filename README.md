@@ -33,8 +33,12 @@ You can also install the online app from Edge/Chrome: open the live link → **I
 ## Android
 
 ### Install the APK
-1. Copy `ShashaAsear-debug.apk` to the phone
-2. On the phone: allow install from this source
+Download from GitHub (works from any phone or PC):
+
+https://github.com/Georgebahna57/shasha-asear/raw/main/ShashaAsear-debug.apk
+
+1. Open that link on the phone (or copy the file to the phone)
+2. Allow install from this source
 3. Open **شاشة أسعار**
 
 The phone uses the live internet feed (not MetaTrader). Landscape or portrait both work.
