@@ -1,0 +1,21 @@
+{
+  "name": "shasha-asear",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "icons": "node scripts/generate-icons.mjs",
+    "web": "node scripts/build-web.mjs",
+    "android:sync": "npm run icons && npm run web && npx cap sync android",
+    "android:open": "npx cap open android",
+    "android:apk": "npm run android:sync && node scripts/build-apk.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.3.1",
+    "@capacitor/core": "^8.3.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.3.1",
+    "sharp": "^0.34.5"
+  }
+}

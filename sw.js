@@ -1,5 +1,12 @@
 const CACHE = "shasha-asear-v3";
-const ASSETS = ["./index.html", "./manifest.json", "./icon.svg"];
+const ASSETS = [
+  "./index.html",
+  "./manifest.json",
+  "./icon.svg",
+  "./pwa-192x192.png",
+  "./pwa-512x512.png",
+  "./apple-touch-icon.png"
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

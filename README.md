@@ -30,6 +30,25 @@ Keep MetaTrader 5 running if you want tick-by-tick prices.
 
 You can also install the online app from Edge/Chrome: open the live link → **Install app**.
 
+## Android
+
+### Install the APK
+1. Copy `ShashaAsear-debug.apk` to the phone
+2. On the phone: allow install from this source
+3. Open **شاشة أسعار**
+
+The phone uses the live internet feed (not MetaTrader). Landscape or portrait both work.
+
+### Add to Home Screen (no APK)
+Open https://georgebahna57.github.io/shasha-asear/ in Chrome → **Add to Home screen**.
+
+### Rebuild the APK
+```bash
+npm install
+npm run android:apk
+```
+The file is written to `android/app/build/outputs/apk/debug/app-debug.apk`.
+
 ## MetaTrader 5 (recommended)
 
 1. In MT5: **File → Open Data Folder**

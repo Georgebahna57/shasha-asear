@@ -1,0 +1,8 @@
+{
+  "appId": "com.shashaasear.app",
+  "appName": "Shasha Asear",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  }
+}

@@ -6,9 +6,10 @@
   <meta name="theme-color" content="#070b16" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <title>Live Price Board</title>
+  <title>شاشة أسعار</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <style>
     :root {
       --bg: #070b16;
@@ -37,7 +38,10 @@
       min-height: 100dvh;
       display: flex;
       flex-direction: column;
-      padding: clamp(0.8rem, 2vw, 2rem) clamp(1rem, 3vw, 3rem);
+      padding: max(clamp(0.8rem, 2vw, 2rem), env(safe-area-inset-top))
+        max(clamp(1rem, 3vw, 3rem), env(safe-area-inset-right))
+        max(clamp(0.8rem, 2vw, 2rem), env(safe-area-inset-bottom))
+        max(clamp(1rem, 3vw, 3rem), env(safe-area-inset-left));
     }
 
     header {
