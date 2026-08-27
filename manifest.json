@@ -1,0 +1,23 @@
+{
+  "name": "شاشة أسعار",
+  "short_name": "أسعار",
+  "description": "Live gold, silver, and euro shop board",
+  "start_url": "./",
+  "scope": "./",
+  "id": "./",
+  "display": "standalone",
+  "display_override": ["fullscreen", "standalone", "minimal-ui"],
+  "orientation": "landscape",
+  "background_color": "#070b16",
+  "theme_color": "#070b16",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
