@@ -1,0 +1,19 @@
+{
+  "name": "Live Price Board",
+  "short_name": "Prices",
+  "description": "Live gold, silver, and euro shop board",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "background_color": "#070b16",
+  "theme_color": "#070b16",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

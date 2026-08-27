@@ -4,9 +4,13 @@ Standalone shop screen. Not part of Sandouk Nemr.
 
 Gold and silver are **USD per troy ounce**. You set only the buy/sell spread.
 
-## Quick open
+## Live app
 
-Double-click `index.html` (uses the public internet feed).
+https://georgebahna57.github.io/shasha-asear/
+
+Open that link on the shop screen. In Chrome you can install it as an app (Install page / Cast / Fullscreen).
+
+## Quick open locally
 
 ## MetaTrader 5 (recommended)
 
