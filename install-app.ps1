@@ -6,10 +6,7 @@ if (-not (Test-Path $edge)) {
   $edge = "C:\Program Files\Microsoft\Edge\Application\msedge.exe"
 }
 
-$appName = -join @(
-  [char]0x0634, [char]0x0627, [char]0x0634, [char]0x0629, " ",
-  [char]0x0623, [char]0x0633, [char]0x0639, [char]0x0627, [char]0x0631
-)
+$appName = "Shasha Asear"
 
 $shell = New-Object -ComObject WScript.Shell
 $startMenu = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\$appName.lnk"
