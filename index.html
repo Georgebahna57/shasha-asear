@@ -10,18 +10,31 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <script>
+    (function () {
+      try {
+        var raw = JSON.parse(localStorage.getItem("shasha-asear-settings-v2") || "{}");
+        var map = { computer: 1, tv32: 1.36, tv41: 1.58, tv50: 1.82 };
+        var key = map[raw.screen] ? raw.screen : "computer";
+        document.documentElement.dataset.screen = key;
+        document.documentElement.style.setProperty("--board-scale", String(map[key]));
+      } catch (e) {}
+    })();
+  </script>
   <style>
     :root {
       --bg: #070b16;
       --card: rgba(2, 8, 23, 0.62);
       --buy: #34d399;
       --sell: #fbbf24;
+      --board-scale: 1;
     }
 
     * { box-sizing: border-box; }
 
     html, body {
       margin: 0;
+      width: 100%;
       min-height: 100dvh;
       background: var(--bg);
       color: #f8fafc;
@@ -34,14 +47,29 @@
         linear-gradient(180deg, #070b16 0%, #0b1224 45%, #050814 100%);
     }
 
+    html[data-screen^="tv"],
+    html[data-screen^="tv"] body {
+      overflow: hidden;
+      height: 100%;
+    }
+
     .board {
-      min-height: 100dvh;
+      zoom: var(--board-scale);
+      width: calc(100% / var(--board-scale));
+      min-height: calc(100dvh / var(--board-scale));
       display: flex;
       flex-direction: column;
       padding: max(clamp(0.8rem, 2vw, 2rem), env(safe-area-inset-top))
         max(clamp(1rem, 3vw, 3rem), env(safe-area-inset-right))
         max(clamp(0.8rem, 2vw, 2rem), env(safe-area-inset-bottom))
         max(clamp(1rem, 3vw, 3rem), env(safe-area-inset-left));
+    }
+
+    @supports not (zoom: 1) {
+      .board {
+        transform: scale(var(--board-scale));
+        transform-origin: top left;
+      }
     }
 
     header {
@@ -164,6 +192,7 @@
       display: flex;
       flex-direction: column;
       justify-content: space-between;
+      min-width: 0;
       border-radius: clamp(1.2rem, 2vw, 2rem);
       border: 1px solid rgba(148, 163, 184, 0.25);
       background: var(--card);
@@ -245,6 +274,9 @@
       font-weight: 900;
       line-height: 1;
       font-variant-numeric: tabular-nums;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .sides {
@@ -255,6 +287,7 @@
     }
 
     .side {
+      min-width: 0;
       border-radius: 1.1rem;
       padding: clamp(0.7rem, 1.6vw, 1.2rem) clamp(0.6rem, 1.2vw, 1rem);
       border: 1px solid rgba(255,255,255,0.08);
@@ -278,6 +311,9 @@
       font-weight: 900;
       line-height: 1;
       font-variant-numeric: tabular-nums;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     footer {
@@ -351,7 +387,7 @@
       margin-bottom: 0.3rem;
     }
 
-    input {
+    input, select {
       width: 100%;
       border: 1px solid #475569;
       background: #0f172a;
@@ -482,11 +518,28 @@
       background: #334155;
     }
 
+    html[data-screen^="tv"] .cards {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    html[data-screen^="tv"] header {
+      align-items: center;
+      flex-direction: row;
+    }
+
+    html[data-screen^="tv"] .clock {
+      text-align: right;
+    }
+
+    html[data-screen^="tv"] .clock-face {
+      justify-content: flex-end;
+    }
+
     @media (max-width: 900px) {
-      .cards { grid-template-columns: 1fr; }
-      header { align-items: stretch; flex-direction: column; }
-      .clock { text-align: left; min-width: 0; }
-      .clock-face { justify-content: flex-start; }
+      html:not([data-screen^="tv"]) .cards { grid-template-columns: 1fr; }
+      html:not([data-screen^="tv"]) header { align-items: stretch; flex-direction: column; }
+      html:not([data-screen^="tv"]) .clock { text-align: left; min-width: 0; }
+      html:not([data-screen^="tv"]) .clock-face { justify-content: flex-start; }
     }
   </style>
 </head>
@@ -597,6 +650,15 @@
           <span>Shop name</span>
           <input id="f-title" type="text" />
         </label>
+        <label>
+          <span>Screen size</span>
+          <select id="f-screen">
+            <option value="computer">Computer / phone</option>
+            <option value="tv32">TV 32 inch</option>
+            <option value="tv41">TV 41 inch</option>
+            <option value="tv50">TV 50 inch and up</option>
+          </select>
+        </label>
       </div>
 
       <div class="group">
@@ -651,8 +713,21 @@
       silverBuy: 0.3,
       silverSell: 0.5,
       euroBuy: 0.004,
-      euroSell: 0.006
+      euroSell: 0.006,
+      screen: "computer"
     };
+    const SCREEN_SCALE = {
+      computer: 1,
+      tv32: 1.36,
+      tv41: 1.58,
+      tv50: 1.82
+    };
+
+    function applyScreen(size) {
+      const key = SCREEN_SCALE[size] ? size : "computer";
+      document.documentElement.dataset.screen = key;
+      document.documentElement.style.setProperty("--board-scale", String(SCREEN_SCALE[key]));
+    }
 
     function loadSettings() {
       try {
@@ -719,6 +794,7 @@
     }
 
     let settings = loadSettings();
+    applyScreen(settings.screen);
     let spot = loadSpot();
     let persistTimer = 0;
     let inFlight = false;
@@ -836,6 +912,7 @@
       document.getElementById("f-silver-sell").value = settings.silverSell;
       document.getElementById("f-euro-buy").value = settings.euroBuy;
       document.getElementById("f-euro-sell").value = settings.euroSell;
+      document.getElementById("f-screen").value = SCREEN_SCALE[settings.screen] ? settings.screen : "computer";
     }
 
     function pad2(n) {
@@ -1134,10 +1211,19 @@
       document.getElementById("saved").textContent = "";
       overlay.classList.add("open");
     };
-    document.getElementById("close-btn").onclick = () => overlay.classList.remove("open");
+    document.getElementById("close-btn").onclick = () => {
+      applyScreen(settings.screen);
+      overlay.classList.remove("open");
+    };
     overlay.addEventListener("click", (e) => {
-      if (e.target === overlay) overlay.classList.remove("open");
+      if (e.target === overlay) {
+        applyScreen(settings.screen);
+        overlay.classList.remove("open");
+      }
     });
+    document.getElementById("f-screen").onchange = () => {
+      applyScreen(document.getElementById("f-screen").value);
+    };
 
     document.getElementById("form").onsubmit = (e) => {
       e.preventDefault();
@@ -1148,9 +1234,11 @@
         silverBuy: parseNum(document.getElementById("f-silver-buy").value),
         silverSell: parseNum(document.getElementById("f-silver-sell").value),
         euroBuy: parseNum(document.getElementById("f-euro-buy").value),
-        euroSell: parseNum(document.getElementById("f-euro-sell").value)
+        euroSell: parseNum(document.getElementById("f-euro-sell").value),
+        screen: document.getElementById("f-screen").value
       };
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      applyScreen(settings.screen);
       render();
       document.getElementById("saved").textContent = "Saved";
     };
@@ -1163,7 +1251,7 @@
     };
 
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./sw.js?v=8").catch(() => {});
+      navigator.serviceWorker.register("./sw.js?v=9").catch(() => {});
     }
   </script>
 </body>

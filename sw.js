@@ -1,4 +1,4 @@
-const CACHE = "shasha-asear-v8";
+const CACHE = "shasha-asear-v9";
 const ASSETS = [
   "./manifest.json",
   "./icon.svg",
