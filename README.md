@@ -6,15 +6,17 @@ Gold and silver are **USD per troy ounce**. You set only the bid/ask spread.
 
 ## Live ticks
 
-With MetaTrader 5 the board follows the same quotes as the terminal (`XAUUSD`, `XAGUSD`, `EURUSD`) on every tick:
+The board follows live gold, silver, and euro bid/ask **on every tick** (WebSocket), without MetaTrader:
 
-- The indicator writes bid / ask as soon as the quote changes
-- The shop screen polls that file about 12 times per second
-- Numbers flash green / red like an exchange board
+- Gold / silver: live ounce price (`XAU` / `XAG`)
+- Euro: live `EUR` rate
 - Shop **Bid** = live bid − your discount
 - Shop **Ask** = live ask + your premium
+- Numbers flash green / red like an exchange board
 
-If MT5 is closed, a slower public feed is used (about once a second). That fallback is not tick-by-tick.
+This works on the phone, the GitHub Pages app, and Windows. MetaTrader 5 is optional: if it is running with `start-board.bat`, it is used only as a backup.
+
+If the live socket is blocked, the board falls back to a fast REST poll, then to a slower public feed.
 
 ## Live app
 
@@ -26,7 +28,7 @@ https://georgebahna57.github.io/shasha-asear/
 2. Open **شاشة أسعار** from the Start menu or Desktop
 3. It opens in its own window, not as a browser tab
 
-Keep MetaTrader 5 running if you want tick-by-tick prices.
+Keep the app open. Prices update on every live tick. MetaTrader 5 is not required.
 
 You can also install the online app from Edge/Chrome: open the live link → **Install app**.
 
@@ -41,7 +43,7 @@ https://github.com/Georgebahna57/shasha-asear/raw/main/ShashaAsear-debug.apk
 2. Allow install from this source
 3. Open **شاشة أسعار**
 
-The phone uses the live internet feed (not MetaTrader). Landscape or portrait both work.
+The phone uses the same live tick feed as the web app. Landscape or portrait both work.
 
 ### Add to Home Screen (no APK)
 Open https://georgebahna57.github.io/shasha-asear/ in Chrome → **Add to Home screen**.
@@ -53,7 +55,7 @@ npm run android:apk
 ```
 The file is written to `android/app/build/outputs/apk/debug/app-debug.apk`.
 
-## MetaTrader 5 (recommended)
+## MetaTrader 5 (optional backup)
 
 1. In MT5: **File → Open Data Folder**
 2. Copy `mt5\ShopPriceBridge.mq5` into `MQL5\Indicators\`
