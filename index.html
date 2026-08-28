@@ -59,7 +59,7 @@
       min-height: calc(100dvh / var(--board-scale));
       display: flex;
       flex-direction: column;
-      padding: max(clamp(0.8rem, 2vw, 2rem), env(safe-area-inset-top))
+      padding: 0
         max(clamp(1rem, 3vw, 3rem), env(safe-area-inset-right))
         max(clamp(0.8rem, 2vw, 2rem), env(safe-area-inset-bottom))
         max(clamp(1rem, 3vw, 3rem), env(safe-area-inset-left));
@@ -72,21 +72,28 @@
       }
     }
 
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 15;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.45rem;
+      margin: 0 calc(-1 * max(clamp(1rem, 3vw, 3rem), env(safe-area-inset-right))) 0.75rem calc(-1 * max(clamp(1rem, 3vw, 3rem), env(safe-area-inset-left)));
+      padding: max(0.55rem, env(safe-area-inset-top)) max(clamp(1rem, 3vw, 3rem), env(safe-area-inset-right)) 0.55rem max(clamp(1rem, 3vw, 3rem), env(safe-area-inset-left));
+      border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+      background: rgba(7, 11, 22, 0.92);
+      backdrop-filter: blur(12px);
+    }
+
     header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 1rem;
       margin-bottom: clamp(0.8rem, 2vw, 1.8rem);
-    }
-
-    .top-actions {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-      align-items: center;
-      gap: 0.45rem;
-      margin-left: auto;
     }
 
     .kicker {
@@ -335,12 +342,12 @@
       font-size: clamp(0.7rem, 1.2vw, 0.95rem);
     }
 
-    .top-actions button, .editor button {
+    .topbar button, .settings-bar button, .editor button {
       font: inherit;
       cursor: pointer;
     }
 
-    .top-actions button {
+    .topbar button {
       border: 1px solid #334155;
       background: transparent;
       color: #94a3b8;
@@ -352,43 +359,40 @@
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.62);
+      background: rgba(0, 0, 0, 0.72);
       z-index: 20;
-      padding: 1rem;
-      align-items: flex-start;
-      justify-content: center;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: flex-start;
+      padding: 0;
     }
 
     .overlay.open { display: flex; }
 
-    .editor {
-      width: min(560px, 100%);
-      max-height: 90dvh;
-      overflow: auto;
-      background: #0f172a;
-      border: 1px solid #334155;
-      border-radius: 1.2rem;
-      padding: 1rem;
-    }
-
-    .editor-top {
+    .settings-bar {
+      flex: none;
       display: flex;
       flex-wrap: wrap;
       justify-content: space-between;
       align-items: center;
       gap: 0.6rem;
-      margin-bottom: 0.75rem;
-      position: sticky;
-      top: 0;
-      z-index: 1;
-      padding-bottom: 0.55rem;
-      background: #0f172a;
+      padding: max(0.7rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) 0.7rem max(1rem, env(safe-area-inset-left));
       border-bottom: 1px solid #334155;
+      background: #0f172a;
     }
 
-    .editor-top h3 { margin: 0; }
-    .editor-top .actions {
-      margin-top: 0;
+    .settings-bar h3 { margin: 0; font-size: 1.05rem; }
+
+    .editor {
+      width: min(560px, calc(100% - 2rem));
+      margin: 1rem auto;
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 1.2rem;
+      padding: 1rem;
     }
 
     .editor .hint { margin: 0 0 1rem; color: #94a3b8; font-size: 0.8rem; line-height: 1.45; }
@@ -566,7 +570,7 @@
     @media (max-width: 900px) {
       html:not([data-screen^="tv"]) .cards { grid-template-columns: 1fr; }
       html:not([data-screen^="tv"]) header { align-items: stretch; flex-direction: column; }
-      html:not([data-screen^="tv"]) .top-actions { margin-left: 0; justify-content: flex-start; }
+      html:not([data-screen^="tv"]) .topbar { justify-content: flex-start; }
       html:not([data-screen^="tv"]) .clock { text-align: left; min-width: 0; }
       html:not([data-screen^="tv"]) .clock-face { justify-content: flex-start; }
     }
@@ -574,14 +578,14 @@
 </head>
 <body>
   <div class="board">
+    <div class="topbar">
+      <button type="button" id="edit-btn">Settings</button>
+      <button type="button" id="full-btn">Fullscreen</button>
+    </div>
     <header>
       <div>
         <p class="kicker">Live market board</p>
         <h1 id="title">Shop</h1>
-      </div>
-      <div class="top-actions">
-        <button type="button" id="edit-btn">Settings</button>
-        <button type="button" id="full-btn">Fullscreen</button>
       </div>
       <div class="clock">
         <p class="clock-kicker">Local time</p>
@@ -666,14 +670,14 @@
   </div>
 
   <div class="overlay" id="overlay">
-    <form class="editor" id="form">
-      <div class="editor-top">
-        <h3>Settings</h3>
-        <div class="actions">
-          <button class="save" type="submit">Save</button>
-          <button class="ghost" type="button" id="close-btn">Close</button>
-        </div>
+    <div class="settings-bar">
+      <h3>Settings</h3>
+      <div class="actions">
+        <button class="save" type="submit" form="form">Save</button>
+        <button class="ghost" type="button" id="close-btn">Close</button>
       </div>
+    </div>
+    <form class="editor" id="form">
       <p class="hint">
         Keep MetaTrader 5 and start-board open to match your broker ticks.
         If MT5 is closed, the board uses the live market feed (it can differ slightly).
