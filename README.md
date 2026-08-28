@@ -6,17 +6,13 @@ Gold and silver are **USD per troy ounce**. You set only the bid/ask spread.
 
 ## Live ticks
 
-The board follows live gold, silver, and euro bid/ask **on every tick** (WebSocket), without MetaTrader:
+The board follows live gold, silver, and euro bid/ask **on every tick**:
 
-- Gold / silver: live ounce price (`XAU` / `XAG`)
-- Euro: live `EUR` rate
+- On the shop PC, keep **MetaTrader 5** and `start-board.bat` open to match your broker
+- The footer then says **LIVE** and **MetaTrader 5 ticks**
+- Phone / website use the live market feed, which can differ slightly from the broker
 - Shop **Bid** = live bid − your discount
 - Shop **Ask** = live ask + your premium
-- Numbers flash green / red like an exchange board
-
-This works on the phone, the GitHub Pages app, and Windows. MetaTrader 5 is optional: if it is running with `start-board.bat`, it is used only as a backup.
-
-If the live socket is blocked, the board falls back to a fast REST poll, then to a slower public feed.
 
 ## Live app
 
@@ -55,7 +51,7 @@ npm run android:apk
 ```
 The file is written to `android/app/build/outputs/apk/debug/app-debug.apk`.
 
-## MetaTrader 5 (optional backup)
+## MetaTrader 5 (to match the broker)
 
 1. In MT5: **File → Open Data Folder**
 2. Copy `mt5\ShopPriceBridge.mq5` into `MQL5\Indicators\`

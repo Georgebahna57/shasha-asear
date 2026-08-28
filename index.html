@@ -587,7 +587,8 @@
     <form class="editor" id="form">
       <h3>Settings</h3>
       <p class="hint">
-        Prices follow the live gold / silver / euro market on every tick. MetaTrader 5 is optional.
+        Keep MetaTrader 5 and start-board open to match your broker ticks.
+        If MT5 is closed, the board uses the live market feed (it can differ slightly).
         Bid follows live bid minus your discount. Ask follows live ask plus your premium.
       </p>
 
@@ -722,6 +723,7 @@
     let persistTimer = 0;
     let inFlight = false;
     let lastTickAt = 0;
+    let lastMt5At = 0;
     let feedSource = null;
     let rafId = 0;
     let painted = { gold: spot.gold, silver: spot.silver, euro: spot.euro };
@@ -879,6 +881,14 @@
 
     function acceptTick(source, partial) {
       const now = Date.now();
+      if (source === "mt5") {
+        feedSource = "mt5";
+        lastTickAt = now;
+        lastMt5At = now;
+        applyTick({ ...partial, source });
+        return;
+      }
+      if (lastMt5At && now - lastMt5At < 4000) return;
       if (feedSource && feedSource !== source && now - lastTickAt < 2500) return;
       feedSource = source;
       lastTickAt = now;
@@ -1074,7 +1084,6 @@
 
     async function pumpMt5() {
       if (inFlight || !LOCAL) return;
-      if (Date.now() - lastTickAt < 700) return;
       inFlight = true;
       try {
         const quote = await fetchMt5();
@@ -1087,7 +1096,7 @@
 
     function loopMt5() {
       pumpMt5();
-      setTimeout(loopMt5, Date.now() - lastTickAt < 700 ? 400 : 80);
+      setTimeout(loopMt5, lastMt5At && Date.now() - lastMt5At < 4000 ? 80 : 250);
     }
 
     render();
