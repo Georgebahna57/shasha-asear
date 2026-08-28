@@ -756,11 +756,11 @@
         : null;
       const source = spot.source === "mt5"
         ? "MetaTrader 5 ticks"
-        : "Live ticks";
+        : "Live spot";
       document.getElementById("updated").textContent = {
         live: source + (when ? " · " + when : ""),
         stale: (when ? "Last tick " + when + " · " : "") + "reconnecting…",
-        off: "Connecting to live ticks"
+        off: "Connecting to live ounce"
       }[status];
     }
 
@@ -1163,7 +1163,7 @@
     };
 
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./sw.js").catch(() => {});
+      navigator.serviceWorker.register("./sw.js?v=8").catch(() => {});
     }
   </script>
 </body>

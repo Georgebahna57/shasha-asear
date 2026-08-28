@@ -1,6 +1,5 @@
-const CACHE = "shasha-asear-v7";
+const CACHE = "shasha-asear-v8";
 const ASSETS = [
-  "./index.html",
   "./manifest.json",
   "./icon.svg",
   "./pwa-192x192.png",
@@ -24,7 +23,12 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
-  if (url.pathname.endsWith("/prices.json") || url.hostname !== location.hostname) return;
+  if (
+    event.request.mode === "navigate" ||
+    url.pathname.endsWith("/prices.json") ||
+    url.pathname.endsWith(".html") ||
+    url.hostname !== location.hostname
+  ) return;
   event.respondWith(
     fetch(event.request).then((res) => {
       const copy = res.clone();
