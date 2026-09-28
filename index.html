@@ -676,7 +676,7 @@
       </div>
       <p class="hint">
         Keep MetaTrader 5 and start-board open to match your broker ticks.
-        If MT5 is closed, the board uses the live market feed (it can differ slightly).
+        If MT5 is closed, the board uses a free spot feed (USD per troy ounce).
         Bid follows live bid minus your discount. Ask follows live ask plus your premium.
       </p>
 
@@ -727,7 +727,7 @@
 
   <script>
     const SETTINGS_KEY = "shasha-asear-settings-v2";
-    const SPOT_KEY = "shasha-asear-spot-v3";
+    const SPOT_KEY = "shasha-asear-spot-v4";
     const LOCAL = location.hostname === "127.0.0.1" || location.hostname === "localhost";
     const MT5_URLS = LOCAL
       ? ["/prices.json", "http://127.0.0.1:8765/prices.json"]
@@ -834,7 +834,6 @@
     let feedSource = null;
     let rafId = 0;
     let painted = { gold: spot.gold, silver: spot.silver, euro: spot.euro };
-    let bybitStarted = false;
 
     function persistSoon() {
       clearTimeout(persistTimer);
@@ -863,7 +862,7 @@
         : null;
       const source = spot.source === "mt5"
         ? "MetaTrader 5 ticks"
-        : "Live spot";
+        : "Spot ounce (USD/troy oz)";
       document.getElementById("updated").textContent = {
         live: source + (when ? " · " + when : ""),
         stale: (when ? "Last tick " + when + " · " : "") + "reconnecting…",
@@ -1053,48 +1052,12 @@
       const d = msg.data || msg;
       const sym = String(d.s || "");
       const index = num(d.i);
-      if (index) {
-        tickBook(sym, index, index, "binance");
-        return;
-      }
-      tickBook(sym, num(d.b), num(d.a), "binance");
-    }
-
-    function handleBybit(raw) {
-      let msg;
-      try { msg = JSON.parse(raw); } catch (_) { return; }
-      const topic = String(msg.topic || "");
-      const data = msg.data;
-      if (!data) return;
-      const index = num(data.indexPrice);
-      if (index) {
-        tickBook(String(data.symbol || ""), index, index, "bybit");
-        return;
-      }
-      if (topic.indexOf("orderbook.1.") === 0) {
-        const bid = num(data.b && data.b[0] && data.b[0][0]);
-        const ask = num(data.a && data.a[0] && data.a[0][0]);
-        tickBook(String(data.s || topic.slice("orderbook.1.".length)), bid, ask, "bybit");
-      }
+      if (index) return;
+      tickBook(sym, num(d.b), num(d.a), "spot");
     }
 
     function startLiveSockets() {
-      openStream(
-        "wss://fstream.binance.com/stream?streams=xauusdt@markPrice@1s/xagusdt@markPrice@1s",
-        handleBinance
-      );
       openStream("wss://stream.binance.com:9443/ws/eurusdt@bookTicker", handleBinance);
-    }
-
-    function startBybit() {
-      if (bybitStarted) return;
-      bybitStarted = true;
-      openStream("wss://stream.bybit.com/v5/public/linear", handleBybit, (ws) => {
-        ws.send(JSON.stringify({
-          op: "subscribe",
-          args: ["tickers.XAUUSDT", "tickers.XAGUSDT"]
-        }));
-      });
     }
 
     async function fetchMt5() {
@@ -1115,94 +1078,53 @@
       return res.json();
     }
 
-    function quoteFromBook(gold, silver, euro, source) {
-      const gBid = num(gold && gold.bidPrice);
-      const gAsk = num(gold && gold.askPrice);
-      const sBid = num(silver && silver.bidPrice);
-      const sAsk = num(silver && silver.askPrice);
-      const eBid = num(euro && euro.bidPrice);
-      const eAsk = num(euro && euro.askPrice);
-      return quoteFromPayload({
-        gold: gBid && gAsk ? (gBid + gAsk) / 2 : gBid,
-        silver: sBid && sAsk ? (sBid + sAsk) / 2 : sBid,
-        euro: eBid && eAsk ? (eBid + eAsk) / 2 : eBid,
-        goldBid: gBid, goldAsk: gAsk,
-        silverBid: sBid, silverAsk: sAsk,
-        euroBid: eBid, euroAsk: eAsk,
-        at: new Date().toISOString()
-      }, source);
-    }
-
-    async function fetchFastRest() {
-      const [gold, silver, euro] = await Promise.all([
-        fetchJson("https://fapi.binance.com/fapi/v1/premiumIndex?symbol=XAUUSDT"),
-        fetchJson("https://fapi.binance.com/fapi/v1/premiumIndex?symbol=XAGUSDT"),
-        fetchJson("https://api.binance.com/api/v3/ticker/bookTicker?symbol=EURUSDT")
-      ]);
-      const goldPx = num(gold && gold.indexPrice);
-      const silverPx = num(silver && silver.indexPrice);
-      return quoteFromBook(
-        { bidPrice: goldPx, askPrice: goldPx },
-        { bidPrice: silverPx, askPrice: silverPx },
-        euro,
-        "binance"
-      );
-    }
-
-    async function fetchSlowWeb() {
+    async function fetchEuroFx() {
       try {
-        const [gold, silver, fx] = await Promise.all([
-          fetchJson("https://api.gold-api.com/price/XAU"),
-          fetchJson("https://api.gold-api.com/price/XAG"),
-          fetchJson("https://api.binance.com/api/v3/ticker/bookTicker?symbol=EURUSDT").catch(() => null)
-        ]);
-        const goldPx = num(gold && gold.price);
-        const silverPx = num(silver && silver.price);
-        const euroBid = num(fx && fx.bidPrice);
-        const euroAsk = num(fx && fx.askPrice);
-        const euroPx = euroBid && euroAsk ? (euroBid + euroAsk) / 2 : num(fx && fx.bidPrice);
-        if (goldPx || silverPx || euroPx) {
-          return quoteFromPayload({
-            gold: goldPx,
-            silver: silverPx,
-            euro: euroPx,
-            goldBid: goldPx,
-            goldAsk: goldPx,
-            silverBid: silverPx,
-            silverAsk: silverPx,
-            euroBid: euroBid || euroPx,
-            euroAsk: euroAsk || euroPx,
-            at: (gold && gold.updatedAt) || new Date().toISOString()
-          }, "web");
-        }
+        const fx = await fetchJson("https://api.binance.com/api/v3/ticker/bookTicker?symbol=EURUSDT");
+        const bid = num(fx.bidPrice);
+        const ask = num(fx.askPrice);
+        if (bid && ask) return { bid, ask, mid: (bid + ask) / 2 };
       } catch (_) {}
+      const fx = await fetchJson("https://api.frankfurter.dev/v1/latest?base=EUR&symbols=USD");
+      const mid = num(fx.rates && fx.rates.USD);
+      if (!mid) throw new Error("no euro");
+      const spread = 0.00015;
+      return { bid: mid - spread, ask: mid + spread, mid };
+    }
 
-      const data = await fetchJson("https://xaus.com/api/v1/spot");
-      const gold = num(data.spot_usd_oz);
-      const silver = num(data.silver_usd_oz);
-      const eurPerUsd = num(data.fx_rates && data.fx_rates.EUR);
-      const euro = eurPerUsd > 0 ? 1 / eurPerUsd : 0;
+    async function fetchSpotWeb() {
+      const [gold, silver, euroFx] = await Promise.all([
+        fetchJson("https://api.gold-api.com/price/XAU"),
+        fetchJson("https://api.gold-api.com/price/XAG"),
+        fetchEuroFx()
+      ]);
+      const goldPx = num(gold && gold.price);
+      const silverPx = num(silver && silver.price);
+      if (!(goldPx > 1000) || !(silverPx > 1)) throw new Error("bad metals quote");
+      const at = (gold && gold.updatedAt) || new Date().toISOString();
       return quoteFromPayload({
-        gold, silver, euro,
-        at: data.updated_at || new Date().toISOString()
-      }, "web");
+        gold: goldPx,
+        silver: silverPx,
+        euro: euroFx.mid,
+        goldBid: goldPx,
+        goldAsk: goldPx,
+        silverBid: silverPx,
+        silverAsk: silverPx,
+        euroBid: euroFx.bid,
+        euroAsk: euroFx.ask,
+        at
+      }, "spot");
     }
 
     async function pumpRest() {
-      if (Date.now() - lastTickAt < 700) return;
+      if (lastMt5At && Date.now() - lastMt5At < 4000) return;
+      if (Date.now() - lastTickAt < 900) return;
       try {
-        const quote = await fetchFastRest();
-        if (quote) acceptTick("binance", quote);
+        const quote = await fetchSpotWeb();
+        if (quote) acceptTick("spot", quote);
         else renderStatus();
       } catch (_) {
-        startBybit();
-        try {
-          const quote = await fetchSlowWeb();
-          if (quote) acceptTick("web", quote);
-          else renderStatus();
-        } catch (__) {
-          renderStatus();
-        }
+        renderStatus();
       }
     }
 
@@ -1230,10 +1152,7 @@
 
     startLiveSockets();
     pumpRest();
-    setInterval(pumpRest, 400);
-    setInterval(() => {
-      if (Date.now() - lastTickAt > 2500) startBybit();
-    }, 1500);
+    setInterval(pumpRest, 1200);
     if (LOCAL) loopMt5();
 
     const overlay = document.getElementById("overlay");
@@ -1282,7 +1201,7 @@
     };
 
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./sw.js?v=9").catch(() => {});
+      navigator.serviceWorker.register("./sw.js?v=10").catch(() => {});
     }
   </script>
 </body>
