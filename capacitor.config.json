@@ -1,7 +1,11 @@
 {
   "appId": "com.shashaasear.app",
-  "appName": "Shasha Asear",
+  "appName": "شاشة أسعار",
   "webDir": "www",
+  "server": {
+    "url": "https://georgebahna57.github.io/shasha-asear/",
+    "cleartext": false
+  },
   "android": {
     "allowMixedContent": false
   }

@@ -15,7 +15,7 @@
       try {
         var raw = JSON.parse(localStorage.getItem("shasha-asear-settings-v2") || "{}");
         var map = { computer: 1, tv32: 1.36, tv41: 1.58, tv50: 1.82 };
-        var key = map[raw.screen] ? raw.screen : "computer";
+        var key = map[raw.screen] ? raw.screen : (matchMedia("(min-width: 1200px)").matches ? "tv41" : "computer");
         document.documentElement.dataset.screen = key;
         document.documentElement.style.setProperty("--board-scale", String(map[key]));
       } catch (e) {}
@@ -675,9 +675,8 @@
         </div>
       </div>
       <p class="hint">
-        Keep MetaTrader 5 and start-board open to match your broker ticks.
-        If MT5 is closed, the board uses a free spot feed (USD per troy ounce).
-        Bid follows live bid minus your discount. Ask follows live ask plus your premium.
+        للموبايل والتلفزيون فقط — تحديث مباشر عبر الإنترنت، بدون كمبيوتر.
+        الشراء = سعر السوق − خصمك. البيع = سعر السوق + هامشك.
       </p>
 
       <div class="row">
@@ -727,11 +726,10 @@
 
   <script>
     const SETTINGS_KEY = "shasha-asear-settings-v2";
-    const SPOT_KEY = "shasha-asear-spot-v4";
-    const LOCAL = location.hostname === "127.0.0.1" || location.hostname === "localhost";
-    const MT5_URLS = LOCAL
-      ? ["/prices.json", "http://127.0.0.1:8765/prices.json"]
-      : [];
+    const SPOT_KEY = "shasha-asear-spot-v5";
+    const POLL_VISIBLE_MS = 380;
+    const POLL_HIDDEN_MS = 2400;
+    const LIVE_MAX_AGE_MS = 1600;
     const ASSETS = [
       { key: "gold", max: 2, buyKey: "goldBuy", sellKey: "goldSell" },
       { key: "silver", max: 2, buyKey: "silverBuy", sellKey: "silverSell" },
@@ -745,7 +743,7 @@
       silverSell: 0.5,
       euroBuy: 0.004,
       euroSell: 0.006,
-      screen: "computer"
+      screen: "tv41"
     };
     const SCREEN_SCALE = {
       computer: 1,
@@ -814,7 +812,7 @@
       void el.offsetWidth;
       el.classList.add(dir > 0 ? "tick-up" : "tick-down", dir > 0 ? "up" : "down");
       clearTimeout(el._tickTimer);
-      el._tickTimer = setTimeout(() => el.classList.remove("up", "down"), 650);
+      el._tickTimer = setTimeout(() => el.classList.remove("up", "down"), 420);
     }
 
     function dirOf(next, prev) {
@@ -828,12 +826,11 @@
     applyScreen(settings.screen);
     let spot = loadSpot();
     let persistTimer = 0;
-    let inFlight = false;
     let lastTickAt = 0;
-    let lastMt5At = 0;
-    let feedSource = null;
     let rafId = 0;
     let painted = { gold: spot.gold, silver: spot.silver, euro: spot.euro };
+    let metalBusy = { gold: false, silver: false };
+    let wakeLock = null;
 
     function persistSoon() {
       clearTimeout(persistTimer);
@@ -843,7 +840,7 @@
     }
 
     function liveStatus() {
-      if (spot.receivedAt && Date.now() - spot.receivedAt < 3500) return "live";
+      if (spot.receivedAt && Date.now() - spot.receivedAt < LIVE_MAX_AGE_MS) return "live";
       if (spot.gold || spot.silver || spot.euro) return "stale";
       return "off";
     }
@@ -856,17 +853,16 @@
       }
       const tag = document.getElementById("live-tag");
       tag.className = "live-tag " + status;
-      tag.textContent = status === "live" ? "LIVE" : status === "stale" ? "DELAYED" : "OFF";
+      tag.textContent = status === "live" ? "LIVE" : status === "stale" ? "تأخير" : "OFF";
       const when = spot.at
         ? new Date(spot.at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
         : null;
-      const source = spot.source === "mt5"
-        ? "MetaTrader 5 ticks"
-        : "Spot ounce (USD/troy oz)";
+      const age = spot.receivedAt ? Math.max(0, Date.now() - spot.receivedAt) : 0;
+      const lag = age < 999 ? age + "ms" : (age / 1000).toFixed(1) + "s";
       document.getElementById("updated").textContent = {
-        live: source + (when ? " · " + when : ""),
-        stale: (when ? "Last tick " + when + " · " : "") + "reconnecting…",
-        off: "Connecting to live ounce"
+        live: "أونصة مباشرة · USD/troy oz" + (when ? " · " + when : "") + " · " + lag,
+        stale: (when ? "آخر تحديث " + when + " · " : "") + "إعادة الاتصال…",
+        off: "جاري الاتصال بالسوق…"
       }[status];
     }
 
@@ -966,52 +962,27 @@
       document.getElementById("clock-date").textContent = weekday + "  ·  " + date;
     }
 
-    function quoteFromPayload(data, source) {
-      const gold = num(data.gold);
-      const silver = num(data.silver);
-      const euro = num(data.euro);
-      if (!(gold || silver || euro)) return null;
-      return {
-        gold, silver, euro,
-        goldBid: num(data.goldBid) || gold,
-        goldAsk: num(data.goldAsk) || gold,
-        silverBid: num(data.silverBid) || silver,
-        silverAsk: num(data.silverAsk) || silver,
-        euroBid: num(data.euroBid) || euro,
-        euroAsk: num(data.euroAsk) || euro,
-        at: data.at || new Date().toISOString(),
-        source
-      };
+    const SYM = { EURUSDT: "euro" };
+
+    function pushTick(partial) {
+      lastTickAt = Date.now();
+      applyTick({ ...partial, source: "spot" });
     }
 
-    const SYM = { XAUUSDT: "gold", XAGUSDT: "silver", EURUSDT: "euro" };
-
-    function acceptTick(source, partial) {
-      const now = Date.now();
-      if (source === "mt5") {
-        feedSource = "mt5";
-        lastTickAt = now;
-        lastMt5At = now;
-        applyTick({ ...partial, source });
-        return;
-      }
-      if (lastMt5At && now - lastMt5At < 4000) return;
-      if (feedSource && feedSource !== source && now - lastTickAt < 2500) return;
-      feedSource = source;
-      lastTickAt = now;
-      applyTick({ ...partial, source });
-    }
-
-    function tickBook(symbol, bid, ask, source) {
+    function tickBook(symbol, bid, ask) {
       const key = SYM[symbol];
       if (!key || !(bid > 0) || !(ask > 0)) return;
-      acceptTick(source, {
+      pushTick({
         [key]: (bid + ask) / 2,
         [key + "Bid"]: bid,
         [key + "Ask"]: ask,
-        at: new Date().toISOString(),
-        source
+        at: new Date().toISOString()
       });
+    }
+
+    function metalSpread(px, metal) {
+      if (metal === "gold") return Math.max(0.28, px * 0.00007);
+      return Math.max(0.025, px * 0.00055);
     }
 
     function openStream(url, onMessage, onOpen) {
@@ -1053,29 +1024,19 @@
       const sym = String(d.s || "");
       const index = num(d.i);
       if (index) return;
-      tickBook(sym, num(d.b), num(d.a), "spot");
+      tickBook(sym, num(d.b), num(d.a));
     }
 
     function startLiveSockets() {
       openStream("wss://stream.binance.com:9443/ws/eurusdt@bookTicker", handleBinance);
     }
 
-    async function fetchMt5() {
-      for (const url of MT5_URLS) {
-        try {
-          const res = await fetch(url, { cache: "no-store" });
-          if (!res.ok) continue;
-          const quote = quoteFromPayload(await res.json(), "mt5");
-          if (quote) return quote;
-        } catch (_) {}
-      }
-      return null;
-    }
-
     async function fetchJson(url) {
       const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) throw new Error("http " + res.status);
-      return res.json();
+      const data = await res.json();
+      if (data && data.code === 0 && data.msg) throw new Error("api");
+      return data;
     }
 
     async function fetchEuroFx() {
@@ -1083,77 +1044,94 @@
         const fx = await fetchJson("https://api.binance.com/api/v3/ticker/bookTicker?symbol=EURUSDT");
         const bid = num(fx.bidPrice);
         const ask = num(fx.askPrice);
-        if (bid && ask) return { bid, ask, mid: (bid + ask) / 2 };
+        if (bid && ask) {
+          pushTick({
+            euro: (bid + ask) / 2,
+            euroBid: bid,
+            euroAsk: ask,
+            at: new Date().toISOString()
+          });
+          return;
+        }
       } catch (_) {}
       const fx = await fetchJson("https://api.frankfurter.dev/v1/latest?base=EUR&symbols=USD");
       const mid = num(fx.rates && fx.rates.USD);
-      if (!mid) throw new Error("no euro");
-      const spread = 0.00015;
-      return { bid: mid - spread, ask: mid + spread, mid };
+      if (!mid) return;
+      const spread = 0.00012;
+      pushTick({
+        euro: mid,
+        euroBid: mid - spread,
+        euroAsk: mid + spread,
+        at: new Date().toISOString()
+      });
     }
 
-    async function fetchSpotWeb() {
-      const [gold, silver, euroFx] = await Promise.all([
-        fetchJson("https://api.gold-api.com/price/XAU"),
-        fetchJson("https://api.gold-api.com/price/XAG"),
-        fetchEuroFx()
-      ]);
-      const goldPx = num(gold && gold.price);
-      const silverPx = num(silver && silver.price);
-      if (!(goldPx > 1000) || !(silverPx > 1)) throw new Error("bad metals quote");
-      const at = (gold && gold.updatedAt) || new Date().toISOString();
-      return quoteFromPayload({
-        gold: goldPx,
-        silver: silverPx,
-        euro: euroFx.mid,
-        goldBid: goldPx,
-        goldAsk: goldPx,
-        silverBid: silverPx,
-        silverAsk: silverPx,
-        euroBid: euroFx.bid,
-        euroAsk: euroFx.ask,
-        at
-      }, "spot");
-    }
-
-    async function pumpRest() {
-      if (lastMt5At && Date.now() - lastMt5At < 4000) return;
-      if (Date.now() - lastTickAt < 900) return;
+    async function pumpMetal(metal) {
+      if (metalBusy[metal]) return;
+      metalBusy[metal] = true;
       try {
-        const quote = await fetchSpotWeb();
-        if (quote) acceptTick("spot", quote);
-        else renderStatus();
+        const sym = metal === "gold" ? "XAU" : "XAG";
+        const data = await fetchJson("https://api.gold-api.com/price/" + sym);
+        const px = num(data && data.price);
+        const min = metal === "gold" ? 800 : 0.5;
+        if (px < min) return;
+        const half = metalSpread(px, metal) / 2;
+        pushTick({
+          [metal]: px,
+          [metal + "Bid"]: px - half,
+          [metal + "Ask"]: px + half,
+          at: (data && data.updatedAt) || new Date().toISOString()
+        });
       } catch (_) {
         renderStatus();
-      }
-    }
-
-    async function pumpMt5() {
-      if (inFlight || !LOCAL) return;
-      inFlight = true;
-      try {
-        const quote = await fetchMt5();
-        if (quote) acceptTick("mt5", quote);
-        else renderStatus();
       } finally {
-        inFlight = false;
+        metalBusy[metal] = false;
       }
     }
 
-    function loopMt5() {
-      pumpMt5();
-      setTimeout(loopMt5, lastMt5At && Date.now() - lastMt5At < 4000 ? 80 : 250);
+    function pollInterval() {
+      return document.hidden ? POLL_HIDDEN_MS : POLL_VISIBLE_MS;
     }
+
+    function startMetalPump(metal, phaseMs) {
+      async function loop() {
+        await pumpMetal(metal);
+        setTimeout(loop, pollInterval() + phaseMs);
+      }
+      setTimeout(loop, phaseMs);
+    }
+
+    async function requestWakeLock() {
+      if (!navigator.wakeLock || wakeLock) return;
+      try {
+        wakeLock = await navigator.wakeLock.request("screen");
+        wakeLock.addEventListener("release", () => { wakeLock = null; });
+      } catch (_) {}
+    }
+
+    async function releaseWakeLock() {
+      try {
+        if (wakeLock) await wakeLock.release();
+      } catch (_) {}
+      wakeLock = null;
+    }
+
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) requestWakeLock();
+    });
 
     render();
     tickClock();
     setInterval(tickClock, 250);
-    setInterval(renderStatus, 400);
+    setInterval(renderStatus, 120);
 
     startLiveSockets();
-    pumpRest();
-    setInterval(pumpRest, 1200);
-    if (LOCAL) loopMt5();
+    startMetalPump("gold", 0);
+    startMetalPump("silver", 160);
+    fetchEuroFx();
+    setInterval(fetchEuroFx, 8000);
+
+    requestWakeLock();
 
     const overlay = document.getElementById("overlay");
     document.getElementById("edit-btn").onclick = () => {
@@ -1195,13 +1173,18 @@
 
     document.getElementById("full-btn").onclick = async () => {
       try {
-        if (document.fullscreenElement) await document.exitFullscreen();
-        else await document.documentElement.requestFullscreen();
+        if (document.fullscreenElement) {
+          await document.exitFullscreen();
+          await releaseWakeLock();
+        } else {
+          await document.documentElement.requestFullscreen();
+          await requestWakeLock();
+        }
       } catch (_) {}
     };
 
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./sw.js?v=10").catch(() => {});
+      navigator.serviceWorker.register("./sw.js?v=11").catch(() => {});
     }
   </script>
 </body>
