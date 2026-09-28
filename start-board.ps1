@@ -1,7 +1,18 @@
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $jsonPath = Join-Path $env:APPDATA "MetaQuotes\Terminal\Common\Files\shop-board.json"
-$url = "http://127.0.0.1:8765/"
+
+function Get-LanIPv4 {
+  try {
+    return Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop |
+      Where-Object {
+        $_.IPAddress -notlike "127.*" -and $_.IPAddress -notlike "169.254.*"
+      } |
+      Select-Object -First 1 -ExpandProperty IPAddress
+  } catch {
+    return $null
+  }
+}
 
 function Open-AppWindow([string]$appUrl) {
   $candidates = @(
@@ -18,17 +29,33 @@ function Open-AppWindow([string]$appUrl) {
 }
 
 $listener = New-Object System.Net.HttpListener
-$listener.Prefixes.Add($url)
+$listener.Prefixes.Add("http://127.0.0.1:8765/")
+$lanIp = Get-LanIPv4
+if ($lanIp) {
+  $listener.Prefixes.Add("http://${lanIp}:8765/")
+}
 try {
   $listener.Start()
 } catch {
-  Open-AppWindow $url
-  exit 0
+  Write-Host "Could not bind LAN. Run enable-lan-board.bat once as Administrator."
+  try {
+    $listener = New-Object System.Net.HttpListener
+    $listener.Prefixes.Add("http://127.0.0.1:8765/")
+    $listener.Start()
+  } catch {
+    Open-AppWindow "http://127.0.0.1:8765/"
+    exit 0
+  }
 }
 
-Open-AppWindow $url
-Write-Host "Shop board: $url"
-Write-Host "MT5 file:   $jsonPath"
+$openUrl = "http://127.0.0.1:8765/"
+Open-AppWindow $openUrl
+Write-Host "Shop board (this PC):  $openUrl"
+if ($lanIp) {
+  Write-Host "TV / phone (same Wi-Fi): http://${lanIp}:8765/"
+  Write-Host "MT5 feed JSON:         http://${lanIp}:8765/prices.json"
+}
+Write-Host "MT5 file:              $jsonPath"
 Write-Host "Keep this window open while the screen is showing."
 Write-Host "Press Ctrl+C to stop."
 

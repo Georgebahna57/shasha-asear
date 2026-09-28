@@ -23,10 +23,18 @@ https://github.com/Georgebahna57/shasha-asear/raw/main/ShashaAsear-debug.apk
 
 **بدون APK:** Chrome → الرابط → **Add to Home screen**.
 
-## تحديث لحظي
+## دقة 100% — MetaTrader 5 (مُوصى للمحل)
 
-- الأسعار من **TradingView** (نفس رموز الشارت: `OANDA:XAUUSD`, `TVC:SILVER`, `FX_IDC:EURUSD`) مع **Bid / Ask** حقيقيين.
-- استعلام سريع (~3 مرات بالثانية). إذا تعطل TradingView يُستخدم gold-api احتياطاً.
+1. على **جهاز واحد** بالمحل: MT5 مفتوح + مؤشر `ShopPriceBridge` على الشارت + `start-board.bat`.
+2. مرة واحدة كـ Administrator: `enable-lan-board.bat` (ليفتح على Wi‑Fi).
+3. على **التلفزيون أو الجوال** (نفس Wi‑Fi): افتح **`http://عنوان-الجهاز:8765/`** — ليس رابط GitHub.
+4. في الإعدادات: **MT5 فقط** مفعّل — السعر = نفس تيك **XAUUSD** في المنصة.
+
+رابط GitHub / TradingView للمعاينة فقط — قد يفرق عدة دولارات عن وسيطك.
+
+## تحديث لحظي (بدون MT5)
+
+- **TradingView** احتياط — ليس بديلاً عن الوسيط.
 - على التلفزيون: **ملء الشاشة** يفعّل إبقاء الشاشة مضاءة (Wake Lock) حيث يدعم المتصفح.
 
 ## ويندوز (اختياري — فقط لفتح الرابط كتطبيق)

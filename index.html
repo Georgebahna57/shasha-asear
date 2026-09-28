@@ -675,9 +675,24 @@
         </div>
       </div>
       <p class="hint">
-        للموبايل والتلفزيون — أسعار TradingView (OANDA XAUUSD)، بدون كمبيوتر.
-        الشراء = Bid السوق − خصمك. البيع = Ask السوق + هامشك.
+        للدقة 100% مثل MT5: شغّل MT5 + ShopPriceBridge + start-board على جهاز المحل، وافتح الشاشة من
+        <b>http://IP-المحل:8765/</b> على التلفزيون (نفس Wi‑Fi). TradingView احتياط فقط إذا فُعّل.
       </p>
+
+      <div class="group">
+        <h4>MetaTrader 5</h4>
+        <p class="sub">تيكات الوسيط — نفس XAUUSD في المنصة</p>
+        <div class="row">
+          <label style="flex:1 1 100%">
+            <span>رابط prices.json (اختياري إذا فتحت من :8765)</span>
+            <input id="f-mt5-url" type="url" placeholder="http://192.168.1.50:8765/prices.json" dir="ltr" />
+          </label>
+        </div>
+        <label class="check">
+          <input id="f-mt5-only" type="checkbox" checked />
+          <span>MT5 فقط — لا TradingView (مُوصى للمحل)</span>
+        </label>
+      </div>
 
       <div class="row">
         <label>
@@ -736,11 +751,13 @@
   </div>
 
   <script>
-    const SETTINGS_KEY = "shasha-asear-settings-v2";
-    const SPOT_KEY = "shasha-asear-spot-v7";
+    const SETTINGS_KEY = "shasha-asear-settings-v3";
+    const SPOT_KEY = "shasha-asear-spot-v8";
+    const MT5_POLL_MS = 100;
     const POLL_VISIBLE_MS = 340;
     const POLL_HIDDEN_MS = 2400;
     const LIVE_MAX_AGE_MS = 1400;
+    const MT5_LIVE_MS = 2200;
     const TV_CFD = "https://scanner.tradingview.com/cfd/scan";
     const TV_FOREX = "https://scanner.tradingview.com/forex/scan";
     const TV_GOLD_ORDER = ["OANDA:XAUUSD", "FOREXCOM:XAUUSD", "TVC:GOLD"];
@@ -760,7 +777,9 @@
       euroBuy: 0.004,
       euroSell: 0.006,
       screen: "tv41",
-      goldTv: "OANDA:XAUUSD"
+      goldTv: "OANDA:XAUUSD",
+      mt5Url: "",
+      mt5Only: true
     };
     const SCREEN_SCALE = {
       computer: 1,
@@ -848,7 +867,29 @@
     let painted = { gold: spot.gold, silver: spot.silver, euro: spot.euro };
     let tvBusy = false;
     let tvGoldLabel = "OANDA:XAUUSD";
+    let mt5Busy = false;
+    let lastMt5At = 0;
+    let mt5Symbols = "";
+    let mt5Error = "";
     let wakeLock = null;
+
+    function isPrivateHost(host) {
+      return /^(localhost|127\.0\.0\.1|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
+    }
+
+    function mt5FeedUrl() {
+      const raw = String(settings.mt5Url || "").trim();
+      if (raw) {
+        const base = raw.replace(/\/+$/, "");
+        return base.endsWith("prices.json") ? base : base + "/prices.json";
+      }
+      if (isPrivateHost(location.hostname)) return location.origin + "/prices.json";
+      return "";
+    }
+
+    function mt5Live() {
+      return lastMt5At > 0 && Date.now() - lastMt5At < MT5_LIVE_MS;
+    }
 
     function persistSoon() {
       clearTimeout(persistTimer);
@@ -877,11 +918,23 @@
         : null;
       const age = spot.receivedAt ? Math.max(0, Date.now() - spot.receivedAt) : 0;
       const lag = age < 999 ? age + "ms" : (age / 1000).toFixed(1) + "s";
-      document.getElementById("updated").textContent = {
-        live: "TradingView · " + tvGoldLabel + " · سعر الشارت" + (when ? " · " + when : "") + " · " + lag,
-        stale: (when ? "آخر تحديث " + when + " · " : "") + "إعادة الاتصال…",
-        off: "جاري الاتصال بـ TradingView…"
-      }[status];
+      let line;
+      if (mt5Live()) {
+        line = "MetaTrader 5 · " + (mt5Symbols || "وسيطك") + (when ? " · " + when : "") + " · " + lag;
+      } else if (settings.mt5Only && mt5FeedUrl()) {
+        line = {
+          live: "MT5 غير متصل — شغّل start-board",
+          stale: mt5Error || "MT5 متوقف — تحقق من الوسيط والـ Bridge",
+          off: "أدخل رابط MT5 أو افتح http://IP:8765/"
+        }[status];
+      } else {
+        line = {
+          live: "TradingView · " + tvGoldLabel + " · سعر الشارت" + (when ? " · " + when : "") + " · " + lag,
+          stale: (when ? "آخر تحديث " + when + " · " : "") + "إعادة الاتصال…",
+          off: "جاري الاتصال بـ TradingView…"
+        }[status];
+      }
+      document.getElementById("updated").textContent = line;
     }
 
     function setText(id, text) {
@@ -959,6 +1012,10 @@
       document.getElementById("f-screen").value = SCREEN_SCALE[settings.screen] ? settings.screen : "computer";
       const gtv = document.getElementById("f-gold-tv");
       if (gtv) gtv.value = settings.goldTv || "OANDA:XAUUSD";
+      const mtu = document.getElementById("f-mt5-url");
+      if (mtu) mtu.value = settings.mt5Url || "";
+      const mto = document.getElementById("f-mt5-only");
+      if (mto) mto.checked = settings.mt5Only !== false;
     }
 
     function pad2(n) {
@@ -982,9 +1039,52 @@
       document.getElementById("clock-date").textContent = weekday + "  ·  " + date;
     }
 
-    function pushTick(partial) {
+    function pushTick(partial, source) {
       lastTickAt = Date.now();
-      applyTick({ ...partial, source: "tradingview" });
+      applyTick({ ...partial, source: source || "tradingview" });
+    }
+
+    function pushTickMt5(data) {
+      lastMt5At = Date.now();
+      lastTickAt = Date.now();
+      mt5Error = "";
+      if (data.symbols) {
+        const s = data.symbols;
+        mt5Symbols = [s.gold, s.silver, s.euro].filter(Boolean).join(" · ");
+      }
+      applyTick({
+        gold: num(data.gold),
+        silver: num(data.silver),
+        euro: num(data.euro),
+        goldBid: num(data.goldBid) || num(data.gold),
+        goldAsk: num(data.goldAsk) || num(data.gold),
+        silverBid: num(data.silverBid) || num(data.silver),
+        silverAsk: num(data.silverAsk) || num(data.silver),
+        euroBid: num(data.euroBid) || num(data.euro),
+        euroAsk: num(data.euroAsk) || num(data.euro),
+        at: data.at || new Date().toISOString(),
+        source: "mt5"
+      });
+    }
+
+    async function pumpMt5() {
+      const url = mt5FeedUrl();
+      if (!url || mt5Busy) return;
+      mt5Busy = true;
+      try {
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) throw new Error("http " + res.status);
+        const data = await res.json();
+        if (data.error || (!(num(data.gold)) && !(num(data.silver)) && !(num(data.euro)))) {
+          throw new Error(data.error || "empty");
+        }
+        pushTickMt5(data);
+      } catch (e) {
+        mt5Error = String(e.message || e);
+        if (settings.mt5Only) renderStatus();
+      } finally {
+        mt5Busy = false;
+      }
     }
 
     async function fetchJson(url) {
@@ -1037,6 +1137,11 @@
     }
 
     async function pumpTradingView() {
+      if (mt5Live()) return;
+      if (settings.mt5Only && mt5FeedUrl()) {
+        renderStatus();
+        return;
+      }
       if (tvBusy) return;
       tvBusy = true;
       const at = new Date().toISOString();
@@ -1140,6 +1245,15 @@
     setInterval(tickClock, 250);
     setInterval(renderStatus, 120);
 
+    function startMt5Pump() {
+      async function loop() {
+        if (mt5FeedUrl()) await pumpMt5();
+        setTimeout(loop, MT5_POLL_MS);
+      }
+      loop();
+    }
+
+    startMt5Pump();
     startTvPump();
 
     requestWakeLock();
@@ -1175,7 +1289,9 @@
         euroBuy: parseNum(document.getElementById("f-euro-buy").value),
         euroSell: parseNum(document.getElementById("f-euro-sell").value),
         screen: document.getElementById("f-screen").value,
-        goldTv: document.getElementById("f-gold-tv").value || "OANDA:XAUUSD"
+        goldTv: document.getElementById("f-gold-tv").value || "OANDA:XAUUSD",
+        mt5Url: document.getElementById("f-mt5-url").value.trim(),
+        mt5Only: document.getElementById("f-mt5-only").checked
       };
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
       applyScreen(settings.screen);
@@ -1196,7 +1312,7 @@
     };
 
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./sw.js?v=13").catch(() => {});
+      navigator.serviceWorker.register("./sw.js?v=14").catch(() => {});
     }
   </script>
 </body>
