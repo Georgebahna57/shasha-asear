@@ -697,7 +697,18 @@
 
       <div class="group">
         <h4>Gold</h4>
-        <p class="sub">USD per ounce, around the live spot</p>
+        <p class="sub">USD per troy ounce — matches TradingView chart (close)</p>
+        <div class="row">
+          <label>
+            <span>TradingView symbol</span>
+            <select id="f-gold-tv">
+              <option value="OANDA:XAUUSD">OANDA XAUUSD</option>
+              <option value="FOREXCOM:XAUUSD">FOREX.com XAUUSD</option>
+              <option value="TVC:GOLD">TVC GOLD (US$/OZ)</option>
+              <option value="PEPPERSTONE:XAUUSD">Pepperstone XAUUSD</option>
+            </select>
+          </label>
+        </div>
         <div class="row">
           <label><span>Bid below live ($)</span><input id="f-gold-buy" type="text" inputmode="decimal" /></label>
           <label><span>Ask above live ($)</span><input id="f-gold-sell" type="text" inputmode="decimal" /></label>
@@ -726,7 +737,7 @@
 
   <script>
     const SETTINGS_KEY = "shasha-asear-settings-v2";
-    const SPOT_KEY = "shasha-asear-spot-v6";
+    const SPOT_KEY = "shasha-asear-spot-v7";
     const POLL_VISIBLE_MS = 340;
     const POLL_HIDDEN_MS = 2400;
     const LIVE_MAX_AGE_MS = 1400;
@@ -748,7 +759,8 @@
       silverSell: 0.5,
       euroBuy: 0.004,
       euroSell: 0.006,
-      screen: "tv41"
+      screen: "tv41",
+      goldTv: "OANDA:XAUUSD"
     };
     const SCREEN_SCALE = {
       computer: 1,
@@ -866,7 +878,7 @@
       const age = spot.receivedAt ? Math.max(0, Date.now() - spot.receivedAt) : 0;
       const lag = age < 999 ? age + "ms" : (age / 1000).toFixed(1) + "s";
       document.getElementById("updated").textContent = {
-        live: "TradingView · " + tvGoldLabel + (when ? " · " + when : "") + " · " + lag,
+        live: "TradingView · " + tvGoldLabel + " · سعر الشارت" + (when ? " · " + when : "") + " · " + lag,
         stale: (when ? "آخر تحديث " + when + " · " : "") + "إعادة الاتصال…",
         off: "جاري الاتصال بـ TradingView…"
       }[status];
@@ -945,6 +957,8 @@
       document.getElementById("f-euro-buy").value = settings.euroBuy;
       document.getElementById("f-euro-sell").value = settings.euroSell;
       document.getElementById("f-screen").value = SCREEN_SCALE[settings.screen] ? settings.screen : "computer";
+      const gtv = document.getElementById("f-gold-tv");
+      if (gtv) gtv.value = settings.goldTv || "OANDA:XAUUSD";
     }
 
     function pad2(n) {
@@ -997,17 +1011,27 @@
       return res.json();
     }
 
+    function tvParseQuote(d) {
+      const close = num(d[0]);
+      const bid = num(d[1]);
+      const ask = num(d[2]);
+      if (!(close > 0) && !(bid > 0 && ask > 0)) return null;
+      const midBa = bid > 0 && ask > 0 ? (bid + ask) / 2 : 0;
+      const spread = bid > 0 && ask > bid ? ask - bid : Math.max(close * 0.00008, 0.00012);
+      const half = spread / 2;
+      if (close > 0 && (!midBa || Math.abs(close - midBa) / close > 0.0015)) {
+        return { mid: close, bid: close - half, ask: close + half };
+      }
+      if (midBa) return { mid: midBa, bid, ask };
+      return { mid: close, bid: close - half, ask: close + half };
+    }
+
     function tvPick(scan, order) {
       const map = {};
       for (const row of scan.data || []) map[row.s] = row.d;
       for (const id of order) {
-        const d = map[id];
-        if (!d) continue;
-        const close = num(d[0]);
-        const bid = num(d[1]);
-        const ask = num(d[2]);
-        if (bid > 0 && ask > 0) return { id, mid: (bid + ask) / 2, bid, ask };
-        if (close > 0) return { id, mid: close, bid: close, ask: close };
+        const q = tvParseQuote(map[id]);
+        if (q) return { id, ...q };
       }
       return null;
     }
@@ -1017,8 +1041,10 @@
       tvBusy = true;
       const at = new Date().toISOString();
       try {
-        const metals = await tvScan(TV_CFD, TV_GOLD_ORDER.concat(TV_SILVER_ORDER));
-        const gold = tvPick(metals, TV_GOLD_ORDER);
+        const goldTickers = [settings.goldTv || "OANDA:XAUUSD"]
+          .concat(TV_GOLD_ORDER.filter((t) => t !== settings.goldTv));
+        const metals = await tvScan(TV_CFD, goldTickers.concat(TV_SILVER_ORDER));
+        const gold = tvPick(metals, goldTickers);
         const silver = tvPick(metals, TV_SILVER_ORDER);
         if (gold) {
           tvGoldLabel = gold.id;
@@ -1148,7 +1174,8 @@
         silverSell: parseNum(document.getElementById("f-silver-sell").value),
         euroBuy: parseNum(document.getElementById("f-euro-buy").value),
         euroSell: parseNum(document.getElementById("f-euro-sell").value),
-        screen: document.getElementById("f-screen").value
+        screen: document.getElementById("f-screen").value,
+        goldTv: document.getElementById("f-gold-tv").value || "OANDA:XAUUSD"
       };
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
       applyScreen(settings.screen);
@@ -1169,7 +1196,7 @@
     };
 
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./sw.js?v=12").catch(() => {});
+      navigator.serviceWorker.register("./sw.js?v=13").catch(() => {});
     }
   </script>
 </body>
