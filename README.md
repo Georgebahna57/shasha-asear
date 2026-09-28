@@ -25,8 +25,8 @@ https://github.com/Georgebahna57/shasha-asear/raw/main/ShashaAsear-debug.apk
 
 ## تحديث لحظي
 
-- الذهب والفضة: مصدر مجاني (spot أونصة)، استعلام سريع متوازي (~4 مرات بالثانية عندما الشاشة ظاهرة).
-- اليورو: WebSocket مباشر من Binance عند التوفر، وإلا Frankfurter.
+- الأسعار من **TradingView** (نفس رموز الشارت: `OANDA:XAUUSD`, `TVC:SILVER`, `FX_IDC:EURUSD`) مع **Bid / Ask** حقيقيين.
+- استعلام سريع (~3 مرات بالثانية). إذا تعطل TradingView يُستخدم gold-api احتياطاً.
 - على التلفزيون: **ملء الشاشة** يفعّل إبقاء الشاشة مضاءة (Wake Lock) حيث يدعم المتصفح.
 
 ## ويندوز (اختياري — فقط لفتح الرابط كتطبيق)

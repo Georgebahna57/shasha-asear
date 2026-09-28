@@ -675,8 +675,8 @@
         </div>
       </div>
       <p class="hint">
-        للموبايل والتلفزيون فقط — تحديث مباشر عبر الإنترنت، بدون كمبيوتر.
-        الشراء = سعر السوق − خصمك. البيع = سعر السوق + هامشك.
+        للموبايل والتلفزيون — أسعار TradingView (OANDA XAUUSD)، بدون كمبيوتر.
+        الشراء = Bid السوق − خصمك. البيع = Ask السوق + هامشك.
       </p>
 
       <div class="row">
@@ -726,10 +726,15 @@
 
   <script>
     const SETTINGS_KEY = "shasha-asear-settings-v2";
-    const SPOT_KEY = "shasha-asear-spot-v5";
-    const POLL_VISIBLE_MS = 380;
+    const SPOT_KEY = "shasha-asear-spot-v6";
+    const POLL_VISIBLE_MS = 340;
     const POLL_HIDDEN_MS = 2400;
-    const LIVE_MAX_AGE_MS = 1600;
+    const LIVE_MAX_AGE_MS = 1400;
+    const TV_CFD = "https://scanner.tradingview.com/cfd/scan";
+    const TV_FOREX = "https://scanner.tradingview.com/forex/scan";
+    const TV_GOLD_ORDER = ["OANDA:XAUUSD", "FOREXCOM:XAUUSD", "TVC:GOLD"];
+    const TV_SILVER_ORDER = ["TVC:SILVER"];
+    const TV_EURO_ORDER = ["FX_IDC:EURUSD"];
     const ASSETS = [
       { key: "gold", max: 2, buyKey: "goldBuy", sellKey: "goldSell" },
       { key: "silver", max: 2, buyKey: "silverBuy", sellKey: "silverSell" },
@@ -829,7 +834,8 @@
     let lastTickAt = 0;
     let rafId = 0;
     let painted = { gold: spot.gold, silver: spot.silver, euro: spot.euro };
-    let metalBusy = { gold: false, silver: false };
+    let tvBusy = false;
+    let tvGoldLabel = "OANDA:XAUUSD";
     let wakeLock = null;
 
     function persistSoon() {
@@ -860,9 +866,9 @@
       const age = spot.receivedAt ? Math.max(0, Date.now() - spot.receivedAt) : 0;
       const lag = age < 999 ? age + "ms" : (age / 1000).toFixed(1) + "s";
       document.getElementById("updated").textContent = {
-        live: "أونصة مباشرة · USD/troy oz" + (when ? " · " + when : "") + " · " + lag,
+        live: "TradingView · " + tvGoldLabel + (when ? " · " + when : "") + " · " + lag,
         stale: (when ? "آخر تحديث " + when + " · " : "") + "إعادة الاتصال…",
-        off: "جاري الاتصال بالسوق…"
+        off: "جاري الاتصال بـ TradingView…"
       }[status];
     }
 
@@ -962,73 +968,9 @@
       document.getElementById("clock-date").textContent = weekday + "  ·  " + date;
     }
 
-    const SYM = { EURUSDT: "euro" };
-
     function pushTick(partial) {
       lastTickAt = Date.now();
-      applyTick({ ...partial, source: "spot" });
-    }
-
-    function tickBook(symbol, bid, ask) {
-      const key = SYM[symbol];
-      if (!key || !(bid > 0) || !(ask > 0)) return;
-      pushTick({
-        [key]: (bid + ask) / 2,
-        [key + "Bid"]: bid,
-        [key + "Ask"]: ask,
-        at: new Date().toISOString()
-      });
-    }
-
-    function metalSpread(px, metal) {
-      if (metal === "gold") return Math.max(0.28, px * 0.00007);
-      return Math.max(0.025, px * 0.00055);
-    }
-
-    function openStream(url, onMessage, onOpen) {
-      let ws = null;
-      let delay = 400;
-      let stopped = false;
-
-      function connect() {
-        if (stopped) return;
-        try { ws = new WebSocket(url); } catch (_) { schedule(); return; }
-        const mine = ws;
-        ws.onopen = () => {
-          delay = 400;
-          if (onOpen) onOpen(mine);
-        };
-        ws.onmessage = (ev) => {
-          if (ws !== mine) return;
-          onMessage(ev.data);
-        };
-        ws.onclose = () => schedule();
-        ws.onerror = () => { try { mine.close(); } catch (_) {} };
-      }
-
-      function schedule() {
-        if (stopped) return;
-        const wait = delay;
-        delay = Math.min(Math.round(delay * 1.7), 8000);
-        setTimeout(connect, wait);
-      }
-
-      connect();
-      return () => { stopped = true; try { ws && ws.close(); } catch (_) {} };
-    }
-
-    function handleBinance(raw) {
-      let msg;
-      try { msg = JSON.parse(raw); } catch (_) { return; }
-      const d = msg.data || msg;
-      const sym = String(d.s || "");
-      const index = num(d.i);
-      if (index) return;
-      tickBook(sym, num(d.b), num(d.a));
-    }
-
-    function startLiveSockets() {
-      openStream("wss://stream.binance.com:9443/ws/eurusdt@bookTicker", handleBinance);
+      applyTick({ ...partial, source: "tradingview" });
     }
 
     async function fetchJson(url) {
@@ -1039,53 +981,100 @@
       return data;
     }
 
-    async function fetchEuroFx() {
-      try {
-        const fx = await fetchJson("https://api.binance.com/api/v3/ticker/bookTicker?symbol=EURUSDT");
-        const bid = num(fx.bidPrice);
-        const ask = num(fx.askPrice);
-        if (bid && ask) {
-          pushTick({
-            euro: (bid + ask) / 2,
-            euroBid: bid,
-            euroAsk: ask,
-            at: new Date().toISOString()
-          });
-          return;
-        }
-      } catch (_) {}
-      const fx = await fetchJson("https://api.frankfurter.dev/v1/latest?base=EUR&symbols=USD");
-      const mid = num(fx.rates && fx.rates.USD);
-      if (!mid) return;
-      const spread = 0.00012;
-      pushTick({
-        euro: mid,
-        euroBid: mid - spread,
-        euroAsk: mid + spread,
-        at: new Date().toISOString()
+    async function tvScan(url, tickers) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=UTF-8" },
+        body: JSON.stringify({
+          symbols: { tickers, query: { types: [] } },
+          columns: ["close", "bid", "ask"],
+          options: { lang: "en" },
+          range: [0, tickers.length]
+        }),
+        cache: "no-store"
       });
+      if (!res.ok) throw new Error("tv http");
+      return res.json();
     }
 
-    async function pumpMetal(metal) {
-      if (metalBusy[metal]) return;
-      metalBusy[metal] = true;
+    function tvPick(scan, order) {
+      const map = {};
+      for (const row of scan.data || []) map[row.s] = row.d;
+      for (const id of order) {
+        const d = map[id];
+        if (!d) continue;
+        const close = num(d[0]);
+        const bid = num(d[1]);
+        const ask = num(d[2]);
+        if (bid > 0 && ask > 0) return { id, mid: (bid + ask) / 2, bid, ask };
+        if (close > 0) return { id, mid: close, bid: close, ask: close };
+      }
+      return null;
+    }
+
+    async function pumpTradingView() {
+      if (tvBusy) return;
+      tvBusy = true;
+      const at = new Date().toISOString();
       try {
-        const sym = metal === "gold" ? "XAU" : "XAG";
-        const data = await fetchJson("https://api.gold-api.com/price/" + sym);
-        const px = num(data && data.price);
-        const min = metal === "gold" ? 800 : 0.5;
-        if (px < min) return;
-        const half = metalSpread(px, metal) / 2;
-        pushTick({
-          [metal]: px,
-          [metal + "Bid"]: px - half,
-          [metal + "Ask"]: px + half,
-          at: (data && data.updatedAt) || new Date().toISOString()
-        });
+        const metals = await tvScan(TV_CFD, TV_GOLD_ORDER.concat(TV_SILVER_ORDER));
+        const gold = tvPick(metals, TV_GOLD_ORDER);
+        const silver = tvPick(metals, TV_SILVER_ORDER);
+        if (gold) {
+          tvGoldLabel = gold.id;
+          pushTick({
+            gold: gold.mid,
+            goldBid: gold.bid,
+            goldAsk: gold.ask,
+            at
+          });
+        }
+        if (silver) {
+          pushTick({
+            silver: silver.mid,
+            silverBid: silver.bid,
+            silverAsk: silver.ask,
+            at
+          });
+        }
+        try {
+          const fx = await tvScan(TV_FOREX, TV_EURO_ORDER);
+          const euro = tvPick(fx, TV_EURO_ORDER);
+          if (euro) {
+            pushTick({
+              euro: euro.mid,
+              euroBid: euro.bid,
+              euroAsk: euro.ask,
+              at
+            });
+          }
+        } catch (_) {}
+        if (!gold && !silver) throw new Error("no tv metals");
       } catch (_) {
-        renderStatus();
+        await pumpMetalFallback();
       } finally {
-        metalBusy[metal] = false;
+        tvBusy = false;
+      }
+    }
+
+    async function pumpMetalFallback() {
+      try {
+        const [gold, silver] = await Promise.all([
+          fetchJson("https://api.gold-api.com/price/XAU"),
+          fetchJson("https://api.gold-api.com/price/XAG")
+        ]);
+        const g = num(gold && gold.price);
+        const s = num(silver && silver.price);
+        const at = (gold && gold.updatedAt) || new Date().toISOString();
+        tvGoldLabel = "gold-api (احتياط)";
+        if (g > 800) {
+          pushTick({ gold: g, goldBid: g, goldAsk: g, at });
+        }
+        if (s > 0.5) {
+          pushTick({ silver: s, silverBid: s, silverAsk: s, at });
+        }
+      } catch (__) {
+        renderStatus();
       }
     }
 
@@ -1093,12 +1082,12 @@
       return document.hidden ? POLL_HIDDEN_MS : POLL_VISIBLE_MS;
     }
 
-    function startMetalPump(metal, phaseMs) {
+    function startTvPump() {
       async function loop() {
-        await pumpMetal(metal);
-        setTimeout(loop, pollInterval() + phaseMs);
+        await pumpTradingView();
+        setTimeout(loop, pollInterval());
       }
-      setTimeout(loop, phaseMs);
+      loop();
     }
 
     async function requestWakeLock() {
@@ -1125,11 +1114,7 @@
     setInterval(tickClock, 250);
     setInterval(renderStatus, 120);
 
-    startLiveSockets();
-    startMetalPump("gold", 0);
-    startMetalPump("silver", 160);
-    fetchEuroFx();
-    setInterval(fetchEuroFx, 8000);
+    startTvPump();
 
     requestWakeLock();
 
@@ -1184,7 +1169,7 @@
     };
 
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./sw.js?v=11").catch(() => {});
+      navigator.serviceWorker.register("./sw.js?v=12").catch(() => {});
     }
   </script>
 </body>
